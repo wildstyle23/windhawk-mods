@@ -33,7 +33,7 @@ The mod is designed to remain lightweight and self-contained while integrating w
   * `vector` — render a lightweight custom vector Windows 11-style icon.
   * `font` — render a glyph from an installed font family.
   * `custom` — load an `.ico`, `.png`, `.bmp`, or `.jpg` file.
-* **Three vector variants** — choose between a minimal geometric style with a lifted-lid full state, a Fluent-inspired trapezoidal style, and a compact symbolic style.
+* **Four vector variants** — choose between a minimal geometric style with a lifted-lid full state, a Fluent-inspired trapezoidal style, a compact symbolic style, and Style 4, an outlined style with a rounded rim and a filled contents level.
 * **Separate icons for states and themes** — custom mode uses Empty/Full Light-theme files with optional Empty/Full Dark-theme alternatives.
 * **Optional auto-hide** — automatically hides the tray icon while the Recycle Bin is empty.
 * **Light / dark theme support** — vector and font rendering adapt to the current Windows system theme; custom icons use Light-theme source files, optional Dark-theme alternatives, and can automatically adapt transparent monochrome image colors to the active theme.
@@ -476,16 +476,18 @@ This project is licensed under the GNU General Public License Version 3.0.
   - style: style1
     $name: "Style variant"
     $name:fr-FR: "Variante du style"
-    $description: "Style 1 uses a minimal geometric 24x24 silhouette with a lifted lid and visible contents for the full state. Style 2 uses a Fluent-inspired trapezoidal silhouette. Style 3 uses a compact symbolic silhouette with a simple lid, handle, and body."
-    $description:fr-FR: "Le Style 1 utilise une silhouette géométrique minimale sur une grille 24x24, avec couvercle soulevé et contenu visible lorsque la corbeille est pleine. Le Style 2 utilise une silhouette trapézoïdale inspirée de Fluent. Le Style 3 utilise une silhouette symbolique compacte avec un couvercle, une poignée et un corps simples."
+    $description: "Style 1 uses a minimal geometric 24x24 silhouette with a lifted lid and visible contents for the full state. Style 2 uses a Fluent-inspired trapezoidal silhouette. Style 3 uses a compact symbolic silhouette with a simple lid, handle, and body. Style 4 uses an outlined silhouette with a rounded rim and a filled contents level for the full state."
+    $description:fr-FR: "Le Style 1 utilise une silhouette géométrique minimale sur une grille 24x24, avec couvercle soulevé et contenu visible lorsque la corbeille est pleine. Le Style 2 utilise une silhouette trapézoïdale inspirée de Fluent. Le Style 3 utilise une silhouette symbolique compacte avec un couvercle, une poignée et un corps simples. Le Style 4 utilise une silhouette en contour avec un rebord arrondi et un niveau de contenu rempli lorsque la corbeille est pleine."
     $options:
       - style1: Style 1 (Minimal / Geometric)
       - style2: Style 2 (Fluent / Trapezoidal)
       - style3: Style 3 (Symbolic / Simple)
+      - style4: Style 4 (Outlined / Rounded)
     $options:fr-FR:
       - style1: Style 1 (Minimal / Géométrique)
       - style2: Style 2 (Fluent / Trapézoïdal)
       - style3: Style 3 (Symbolique / Simple)
+      - style4: Style 4 (Contour / Arrondi)
   $name: "Vector"
   $name:fr-FR: "Vectoriel"
   $description: "Used only when Icon style is set to Vector."
@@ -2283,7 +2285,8 @@ void LoadSettingsInto(ModSettings& s) {
     ReadStringSetting(L"vector.style", s.vectorStyle, ARRAYSIZE(s.vectorStyle), L"style1");
     if (_wcsicmp(s.vectorStyle, L"style1") != 0 &&
         _wcsicmp(s.vectorStyle, L"style2") != 0 &&
-        _wcsicmp(s.vectorStyle, L"style3") != 0) {
+        _wcsicmp(s.vectorStyle, L"style3") != 0 &&
+        _wcsicmp(s.vectorStyle, L"style4") != 0) {
         StringCchCopyW(s.vectorStyle, ARRAYSIZE(s.vectorStyle), L"style1");
     }
 
@@ -2927,6 +2930,65 @@ static void TiltLidPath_Style1(Gdiplus::GraphicsPath& path, float s) {
     path.Transform(&matrix);
 }
 
+// Style4 mirrors Style2's actual rendering technique: a stroked open path
+// for the body silhouette and handle (not a filled compound shape), plus a
+// filled lid and, for the full state, a filled contents-level polygon. The
+// artwork (MinibinTheme-W11-derived) was redrawn to match Style2's real
+// proportions and stroke weight in the same 128-unit export canvas, so the
+// only scaling needed here is the same 128-to-24-unit grid conversion used
+// elsewhere -- no extra inset. The pen width (2.025 = 10.8 source px * the
+// 24/128 scale) reproduces the source stroke weight exactly. The empty and
+// full states share one body-outline path: the two states' artwork trace
+// the same silhouette in opposite directions, which doesn't matter for a
+// stroked (unfilled) path.
+static void BuildBodyOutlinePath_Style4(Gdiplus::GraphicsPath& path, float s24) {
+    path.Reset();
+    path.AddLine(5.25000f * s24, 5.73750f * s24, 6.30000f * s24, 20.30625f * s24);
+    path.AddBezier(
+        6.30000f * s24, 20.30625f * s24,
+        6.30000f * s24, 21.22500f * s24,
+        6.71250f * s24, 21.67500f * s24,
+        7.57500f * s24, 21.67500f * s24);
+    path.AddLine(7.57500f * s24, 21.67500f * s24, 16.42500f * s24, 21.67500f * s24);
+    path.AddBezier(
+        16.42500f * s24, 21.67500f * s24,
+        17.28750f * s24, 21.67500f * s24,
+        17.70000f * s24, 21.22500f * s24,
+        17.70000f * s24, 20.30625f * s24);
+    path.AddLine(17.70000f * s24, 20.30625f * s24, 18.75000f * s24, 5.73750f * s24);
+}
+
+static void BuildHandlePath_Style4(Gdiplus::GraphicsPath& path, float s24) {
+    path.Reset();
+    path.AddBezier(
+        8.43750f * s24, 4.68750f * s24,
+        8.43750f * s24, 3.00000f * s24,
+        10.03125f * s24, 1.65000f * s24,
+        12.00000f * s24, 1.65000f * s24);
+    path.AddBezier(
+        12.00000f * s24, 1.65000f * s24,
+        13.96875f * s24, 1.65000f * s24,
+        15.56250f * s24, 3.01875f * s24,
+        15.56250f * s24, 4.68750f * s24);
+}
+
+static void BuildLidPath_Style4(Gdiplus::GraphicsPath& path, float s24) {
+    path.Reset();
+    AddRoundedRect(path, 2.77500f * s24, 4.57500f * s24, 18.45000f * s24, 2.32500f * s24, 1.01250f * s24);
+}
+
+static void BuildContentsPath_Style4(Gdiplus::GraphicsPath& path, float s24) {
+    path.Reset();
+    const Gdiplus::PointF points[] = {
+        { 9.22500f * s24, 18.63750f * s24 },
+        { 8.58750f * s24, 9.71250f * s24 },
+        { 15.41250f * s24, 9.71250f * s24 },
+        { 14.77500f * s24, 18.63750f * s24 },
+        { 9.22500f * s24, 18.63750f * s24 },
+    };
+    path.AddPolygon(points, ARRAYSIZE(points));
+}
+
 HICON CreateVectorTrashIcon(int iconSize, bool isEmpty, bool isDarkTheme, std::wstring_view vectorStyle) {
     if (!EnsureGdiplusInitialized()) return NULL;
 
@@ -2947,9 +3009,12 @@ HICON CreateVectorTrashIcon(int iconSize, bool isEmpty, bool isDarkTheme, std::w
 
         const bool useStyle1 = (vectorStyle.compare(L"style1") == 0);
         const bool useStyle2 = (vectorStyle.compare(L"style2") == 0);
+        const bool useStyle4 = (vectorStyle.compare(L"style4") == 0);
 
-        // Styles 1 and 2 target the same bright foreground as Windows tray glyphs.
-        const bool useBrightTrayColor = useStyle1 || useStyle2;
+        // Styles 1, 2, and Style 4 target the same bright foreground as Windows
+        // tray glyphs; Style 4's thin outline strokes need it for the same
+        // reason Style2's do.
+        const bool useBrightTrayColor = useStyle1 || useStyle2 || useStyle4;
         const Gdiplus::Color color =
             (isDarkTheme && useBrightTrayColor)
                 ? Gdiplus::Color(255, 255, 255, 255)
@@ -3015,6 +3080,33 @@ HICON CreateVectorTrashIcon(int iconSize, bool isEmpty, bool isDarkTheme, std::w
             Gdiplus::GraphicsPath lidPath;
             BuildLidPath_Style2(lidPath, s);
             g.FillPath(&brush, &lidPath);
+        } else if (useStyle4) {
+            // Style 4 uses Style2's stroked-outline technique: the body silhouette
+            // and handle are open paths drawn with a pen, not filled shapes. The
+            // pen width (2.025 = Style2's 10.8px source stroke scaled to this
+            // grid) reproduces the source artwork's actual weight.
+            Gdiplus::Pen style4Pen(color, 2.025f * s24);
+            style4Pen.SetLineJoin(Gdiplus::LineJoinRound);
+            style4Pen.SetStartCap(Gdiplus::LineCapRound);
+            style4Pen.SetEndCap(Gdiplus::LineCapRound);
+
+            Gdiplus::GraphicsPath bodyPath;
+            BuildBodyOutlinePath_Style4(bodyPath, s24);
+            g.DrawPath(&style4Pen, &bodyPath);
+
+            Gdiplus::GraphicsPath handlePath;
+            BuildHandlePath_Style4(handlePath, s24);
+            g.DrawPath(&style4Pen, &handlePath);
+
+            Gdiplus::GraphicsPath lidPath;
+            BuildLidPath_Style4(lidPath, s24);
+            g.FillPath(&brush, &lidPath);
+
+            if (!isEmpty) {
+                Gdiplus::GraphicsPath contentsPath;
+                BuildContentsPath_Style4(contentsPath, s24);
+                g.FillPath(&brush, &contentsPath);
+            }
         } else {
             // Style 3 is the compact symbolic renderer.
             Gdiplus::GraphicsPath handlePath;
